@@ -44,3 +44,36 @@ variable "kubernetes_version" {
   type        = string
   default     = "1.33"
 }
+
+# =============================================================================
+# Docker Hub credentials (para imagePullSecret en K8s)
+# =============================================================================
+variable "docker_server" {
+  description = "Docker registry server"
+  type        = string
+  default     = "https://index.docker.io/v1/"
+}
+
+variable "docker_username" {
+  description = "Docker Hub username"
+  type        = string
+  default     = "camiloxsys"
+}
+
+variable "docker_password" {
+  description = "Docker Hub password"
+  type        = string
+  sensitive   = true
+}
+
+variable "docker_image" {
+  description = "Imagen Docker completa (user/image)"
+  type        = string
+  default     = "camiloxsys/flask-app"
+}
+
+variable "docker_tag" {
+  description = "Tag de la imagen Docker"
+  type        = string
+  default     = "latest"
+}

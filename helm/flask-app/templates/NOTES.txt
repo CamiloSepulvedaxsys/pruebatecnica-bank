@@ -1,0 +1,30 @@
+============================================================
+  Flask App - Prueba Tecnica Banco
+============================================================
+
+La aplicacion ha sido desplegada exitosamente.
+
+Namespace: {{ .Values.namespace }}
+Replicas:  {{ .Values.replicaCount }}
+Imagen:    {{ .Values.image.repository }}:{{ .Values.image.tag }}
+
+{{- if eq .Values.service.type "LoadBalancer" }}
+
+Para obtener la IP externa del LoadBalancer:
+
+  kubectl get svc {{ .Chart.Name }}-service -n {{ .Values.namespace }} -w
+
+Una vez asignada la IP:
+
+  curl http://<EXTERNAL-IP>/
+  curl http://<EXTERNAL-IP>/health
+
+{{- else }}
+
+Para acceder a la aplicacion via port-forward:
+
+  kubectl port-forward svc/{{ .Chart.Name }}-service 8000:{{ .Values.service.port }} -n {{ .Values.namespace }}
+  curl http://localhost:8000/
+
+{{- end }}
+============================================================

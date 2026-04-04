@@ -23,3 +23,8 @@ output "aks_get_credentials_command" {
   value       = "az aks get-credentials --resource-group ${azurerm_resource_group.main.name} --name ${azurerm_kubernetes_cluster.aks.name}"
   description = "Comando para obtener credenciales del clúster"
 }
+
+output "helm_release_status" {
+  value       = helm_release.flask_app.status
+  description = "Estado del despliegue Helm"
+}
