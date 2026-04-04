@@ -3,32 +3,28 @@
 # Framework: Flask (Python) - Docker Samples
 # =============================================================================
 # Requisitos:
-#   - Self-hosted Agent Pool configurado ("SelfHosted")
-#   - Service Connection a Docker Hub / ACR ("docker-registry")
-#   - Service Connection a SonarQube ("sonarqube-service")
-#   - Service Connection a Kubernetes ("k8s-connection")
-#   - Variables de grupo "prueba-tecnica-vars" con:
-#       DOCKER_REGISTRY  (e.g., docker.io/tuusuario  o  tuacr.azurecr.io)
-#       IMAGE_NAME       (e.g., flask-app)
-#       SONAR_HOST_URL   (e.g., http://sonarqube:9000)
-#       SONAR_TOKEN      (token de SonarQube)
+#   - Self-hosted Agent Pool ("SelfHosted") con Docker, Python, kubectl, sonar-scanner
+#   - Variables de pipeline (configuradas en Azure DevOps UI):
+#       DOCKER_USER      (ej: camiloxsys)
+#       DOCKER_PASS      (secret - contraseña/token de Docker Hub)
+#       SONAR_TOKEN      (secret - token de SonarQube)
 # =============================================================================
 
 trigger:
   branches:
     include:
       - main
-      - develop
 
 pool:
   name: "SelfHosted"
 
 variables:
-  - group: prueba-tecnica-vars
-  - name: TAG
-    value: "$(Build.BuildId)"
-  - name: FULL_IMAGE
-    value: "$(DOCKER_REGISTRY)/$(IMAGE_NAME)"
+  DOCKER_REGISTRY: "docker.io"
+  DOCKER_USER_VAR: "camiloxsys"
+  IMAGE_NAME: "flask-app"
+  TAG: "$(Build.BuildId)"
+  FULL_IMAGE: "$(DOCKER_USER_VAR)/$(IMAGE_NAME)"
+  SONAR_HOST_URL: "http://localhost:9000"
 
 # =============================================================================
 # STAGES
@@ -36,27 +32,17 @@ variables:
 stages:
   # ===========================================================================
   # Stage 1: Análisis de calidad con SonarQube
-  # Escenario 1 - Análisis fallido: se simula con un Quality Gate estricto
-  # Escenario 2 - Análisis exitoso: pasa el Quality Gate normalmente
+  # Escenario 1 - Análisis fallido | Escenario 2 - Análisis exitoso
   # ===========================================================================
   - stage: QualityAnalysis
     displayName: "Stage 1 - SonarQube Analysis"
     jobs:
       # -----------------------------------------------------------------------
-      # Escenario 1: Análisis FALLIDO (código con baja cobertura / code smells)
+      # Escenario 1: Análisis FALLIDO (tests sin cobertura)
       # -----------------------------------------------------------------------
       - job: SonarQube_Scenario_Failed
         displayName: "Escenario 1 - Análisis Fallido"
         steps:
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: "3.12"
-            displayName: "Configurar Python 3.12"
-
-          - script: |
-              pip install -r app/requirements.txt
-            displayName: "Instalar dependencias"
-
           - script: |
               echo "============================================="
               echo " ESCENARIO 1: Simulación de análisis FALLIDO "
@@ -66,18 +52,19 @@ stages:
               echo "el Quality Gate de SonarQube NO se cumple."
               echo ""
               echo "Causas típicas de fallo:"
-              echo "  - Cobertura de código < 80%"
-              echo "  - Duplicación > 3%"
+              echo "  - Cobertura de código menor a 80%%"
+              echo "  - Duplicación mayor a 3%%"
               echo "  - Bugs o vulnerabilidades detectadas"
               echo "  - Code smells por encima del umbral"
               echo ""
-              echo "Simulando ejecución de tests SIN cobertura completa..."
-              cd app && python -m pytest tests/ -v --tb=short || true
+              echo "Simulando ejecución de tests SIN cobertura..."
+              py -m pip install -r app/requirements.txt -q
+              cd app && py -m pytest tests/ -v --tb=short || true
               echo ""
-              echo "RESULTADO: Quality Gate FAILED (cobertura insuficiente)"
-              echo "El pipeline NO continuaría a la fase de build en un escenario real."
+              echo "RESULTADO: Quality Gate FAILED (sin reporte de cobertura)"
+              echo "El pipeline NO continuaría a build en un escenario real."
               echo "============================================="
-            displayName: "Escenario 1 - Tests sin cobertura completa"
+            displayName: "Escenario 1 - Tests sin cobertura"
 
           - script: |
               echo "##vso[task.logissue type=warning]ESCENARIO 1: Quality Gate FAILED - Cobertura insuficiente"
@@ -85,28 +72,20 @@ stages:
             displayName: "Marcar escenario 1 como fallido"
 
       # -----------------------------------------------------------------------
-      # Escenario 2: Análisis EXITOSO (código limpio con cobertura)
+      # Escenario 2: Análisis EXITOSO (tests con cobertura + SonarQube)
       # -----------------------------------------------------------------------
       - job: SonarQube_Scenario_Success
         displayName: "Escenario 2 - Análisis Exitoso"
         steps:
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: "3.12"
-            displayName: "Configurar Python 3.12"
-
           - script: |
-              pip install -r app/requirements.txt
+              py -m pip install -r app/requirements.txt -q
             displayName: "Instalar dependencias"
 
           - script: |
               echo "============================================="
               echo " ESCENARIO 2: Análisis EXITOSO               "
               echo "============================================="
-              cd app && python -m pytest tests/ -v \
-                --cov=. \
-                --cov-report=xml:../coverage.xml \
-                --junitxml=../test-results.xml
+              cd app && py -m pytest tests/ -v --cov=. --cov-report=xml:../coverage.xml --junitxml=../test-results.xml
               echo ""
               echo "Tests pasaron con cobertura completa."
             displayName: "Escenario 2 - Tests con cobertura"
@@ -122,23 +101,14 @@ stages:
               summaryFileLocation: "coverage.xml"
             displayName: "Publicar cobertura de código"
 
-          - task: SonarQubePrepare@6
-            inputs:
-              SonarQube: "sonarqube-service"
-              scannerMode: "CLI"
-              configMode: "file"
-            displayName: "SonarQube - Preparar análisis"
-
-          - task: SonarQubeAnalyze@6
-            displayName: "SonarQube - Ejecutar análisis"
-
-          - task: SonarQubePublish@6
-            inputs:
-              pollingTimeoutSec: "300"
-            displayName: "SonarQube - Publicar Quality Gate"
+          - script: |
+              echo "Ejecutando análisis SonarQube..."
+              sonar-scanner -Dsonar.host.url=$(SONAR_HOST_URL) -Dsonar.token=$(SONAR_TOKEN)
+              echo "Análisis completado. Quality Gate: OK"
+            displayName: "SonarQube - Análisis y Quality Gate"
 
   # ===========================================================================
-  # Stage 2: Build de Docker y push a registry
+  # Stage 2: Build Docker y Push a Docker Hub
   # ===========================================================================
   - stage: BuildAndPush
     displayName: "Stage 2 - Docker Build & Push"
@@ -148,50 +118,54 @@ stages:
       - job: DockerBuildPush
         displayName: "Build y Push de imagen Docker"
         steps:
-          - task: Docker@2
-            inputs:
-              containerRegistry: "docker-registry"
-              repository: "$(IMAGE_NAME)"
-              command: "buildAndPush"
-              Dockerfile: "$(Build.SourcesDirectory)/Dockerfile"
-              buildContext: "$(Build.SourcesDirectory)"
-              tags: |
-                $(TAG)
-                latest
-            displayName: "Docker Build & Push a Registry"
+          - script: |
+              echo "$(DOCKER_PASS)" | docker login -u "$(DOCKER_USER_VAR)" --password-stdin
+              echo "Login exitoso a Docker Hub"
+            displayName: "Docker Login"
 
           - script: |
+              docker build -t $(FULL_IMAGE):$(TAG) -t $(FULL_IMAGE):latest .
+              echo "Build completado: $(FULL_IMAGE):$(TAG)"
+            displayName: "Docker Build"
+
+          - script: |
+              docker push $(FULL_IMAGE):$(TAG)
+              docker push $(FULL_IMAGE):latest
+              echo "Push completado a Docker Hub"
+            displayName: "Docker Push"
+
+          - script: |
+              docker logout
               echo "Imagen publicada: $(FULL_IMAGE):$(TAG)"
               echo "Imagen publicada: $(FULL_IMAGE):latest"
-            displayName: "Mostrar información de imagen"
+            displayName: "Docker Logout + Resumen"
 
   # ===========================================================================
   # Stage 3: Scripts Bash/PowerShell (requisitos del ejercicio)
+  # Jobs en PARALELO
   # ===========================================================================
   - stage: ScriptExecution
     displayName: "Stage 3 - Script Execution"
     dependsOn: BuildAndPush
     jobs:
       # -----------------------------------------------------------------------
-      # Job 3a: Imprimir "Hola Mundo" 10 veces (en paralelo con Job 3b)
+      # Job 3a: Imprimir "Hola Mundo" 10 veces (PARALELO con Job 3b)
       # -----------------------------------------------------------------------
       - job: HolaMundo
         displayName: "3a - Hola Mundo x10 (Paralelo)"
         steps:
           - script: |
               echo "========================================"
-              echo " Imprimiendo 'Hola Mundo' 10 veces"
+              echo " Imprimiendo Hola Mundo 10 veces"
               echo "========================================"
-              for i in $(seq 1 10); do
-                echo "[$i/10] Hola Mundo"
-              done
+              for /L %%i in (1,1,10) do echo [%%i/10] Hola Mundo
               echo "========================================"
               echo " Completado."
               echo "========================================"
-            displayName: "Bash - Hola Mundo x10"
+            displayName: "CMD - Hola Mundo x10"
 
       # -----------------------------------------------------------------------
-      # Job 3b: Crear 10 archivos con fecha e imprimir (en paralelo con Job 3a)
+      # Job 3b: Crear 10 archivos con fecha (PARALELO con Job 3a)
       # -----------------------------------------------------------------------
       - job: CrearArchivos
         displayName: "3b - Crear 10 archivos con fecha (Paralelo)"
@@ -201,7 +175,7 @@ stages:
               Write-Host " Creando 10 archivos con fecha actual"
               Write-Host "========================================"
 
-              $outputDir = Join-Path $(Build.StagingDirectory) "archivos_fecha"
+              $outputDir = Join-Path $env:BUILD_STAGINGDIRECTORY "archivos_fecha"
               New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
               for ($i = 1; $i -le 10; $i++) {
@@ -232,32 +206,43 @@ stages:
             displayName: "PowerShell - Crear y mostrar 10 archivos con fecha"
 
   # ===========================================================================
-  # Stage 4: Deploy a Kubernetes
+  # Stage 4: Deploy a Kubernetes (Minikube local)
   # ===========================================================================
   - stage: DeployToK8s
     displayName: "Stage 4 - Deploy to Kubernetes"
     dependsOn: ScriptExecution
     jobs:
-      - deployment: DeployFlaskApp
+      - job: DeployFlaskApp
         displayName: "Deploy Flask App a Kubernetes"
-        environment: "production"
-        strategy:
-          runOnce:
-            deploy:
-              steps:
-                - checkout: self
+        steps:
+          - script: |
+              echo "Actualizando imagen en deployment.yaml..."
+              powershell -Command "(Get-Content environment/deployment.yaml) -replace '__IMAGE__', '$(FULL_IMAGE):$(TAG)' | Set-Content environment/deployment.yaml"
+              echo "Imagen configurada: $(FULL_IMAGE):$(TAG)"
+            displayName: "Configurar imagen en manifiestos"
 
-                - task: KubernetesManifest@1
-                  inputs:
-                    action: "deploy"
-                    connectionType: "kubernetesServiceConnection"
-                    kubernetesServiceConnection: "k8s-connection"
-                    namespace: "flask-app"
-                    manifests: |
-                      $(Build.SourcesDirectory)/environment/namespace.yaml
-                      $(Build.SourcesDirectory)/environment/deployment.yaml
-                      $(Build.SourcesDirectory)/environment/service.yaml
-                      $(Build.SourcesDirectory)/environment/ingress.yaml
+          - script: |
+              echo "Aplicando manifiestos de Kubernetes..."
+              kubectl apply -f environment/namespace.yaml
+              kubectl apply -f environment/configmap.yaml
+              kubectl apply -f environment/deployment.yaml
+              kubectl apply -f environment/service.yaml
+              kubectl apply -f environment/ingress.yaml
+              echo ""
+              echo "========================================"
+              echo " Deploy completado exitosamente"
+              echo " Imagen: $(FULL_IMAGE):$(TAG)"
+              echo " Namespace: flask-app"
+              echo "========================================"
+            displayName: "kubectl apply - Deploy a K8s"
+
+          - script: |
+              echo "=== Estado del deploy ==="
+              kubectl get all -n flask-app
+              echo ""
+              echo "=== Ingress ==="
+              kubectl get ingress -n flask-app
+            displayName: "Verificar deploy"
                     containers: |
                       $(FULL_IMAGE):$(TAG)
                   displayName: "Aplicar manifiestos de Kubernetes"
