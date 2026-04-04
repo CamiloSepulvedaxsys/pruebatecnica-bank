@@ -118,8 +118,9 @@ stages:
       - job: DockerBuildPush
         displayName: "Build y Push de imagen Docker"
         steps:
-          - pwsh: |
+          - powershell: |
               docker login -u "$(DOCKER_USER_VAR)" -p "$(DOCKER_PASS)"
+              if ($LASTEXITCODE -ne 0) { throw "Docker login failed" }
               Write-Host "Login exitoso a Docker Hub"
             displayName: "Docker Login"
 
@@ -170,7 +171,7 @@ stages:
       - job: CrearArchivos
         displayName: "3b - Crear 10 archivos con fecha (Paralelo)"
         steps:
-          - pwsh: |
+          - powershell: |
               Write-Host "========================================"
               Write-Host " Creando 10 archivos con fecha actual"
               Write-Host "========================================"
