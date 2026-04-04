@@ -1,0 +1,44 @@
+# =============================================================================
+# Stage: Docker Build & Push a Docker Hub
+# =============================================================================
+parameters:
+  - name: dockerUser
+    type: string
+  - name: imageName
+    type: string
+    default: "flask-app"
+  - name: tag
+    type: string
+    default: "$(Build.BuildId)"
+
+stages:
+  - stage: BuildAndPush
+    displayName: "Stage 2 - Docker Build & Push"
+    dependsOn: QualityAnalysis
+    condition: succeeded()
+    jobs:
+      - job: DockerBuildPush
+        displayName: "Build y Push de imagen Docker"
+        steps:
+          - powershell: |
+              docker login -u "${{ parameters.dockerUser }}" -p "$(DOCKER_PASS)"
+              if ($LASTEXITCODE -ne 0) { throw "Docker login failed" }
+              Write-Host "Login exitoso a Docker Hub"
+            displayName: "Docker Login"
+
+          - script: |
+              docker build -t ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }} -t ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest .
+              echo "Build completado: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}"
+            displayName: "Docker Build"
+
+          - script: |
+              docker push ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}
+              docker push ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest
+              echo "Push completado a Docker Hub"
+            displayName: "Docker Push"
+
+          - script: |
+              docker logout
+              echo "Imagen publicada: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}"
+              echo "Imagen publicada: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest"
+            displayName: "Docker Logout + Resumen"

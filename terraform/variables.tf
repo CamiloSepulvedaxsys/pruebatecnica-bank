@@ -7,7 +7,7 @@ variable "resource_group_name" {
 variable "location" {
   description = "Región de Azure"
   type        = string
-  default     = "eastus2"
+  default     = "southcentralus"
 }
 
 variable "cluster_name" {

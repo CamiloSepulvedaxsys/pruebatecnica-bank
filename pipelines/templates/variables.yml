@@ -1,0 +1,14 @@
+# =============================================================================
+# Variables compartidas del pipeline
+# =============================================================================
+variables:
+  DOCKER_REGISTRY: "docker.io"
+  DOCKER_USER_VAR: "camiloxsys"
+  IMAGE_NAME: "flask-app"
+  TAG: "$(Build.BuildId)"
+  FULL_IMAGE: "$(DOCKER_USER_VAR)/$(IMAGE_NAME)"
+  SONAR_HOST_URL: "http://localhost:9000"
+  AZURE_RG: "rg-pruebatecnica"
+  AZURE_LOCATION: "southcentralus"
+  AZURE_CONTAINER_ENV: "env-pruebatecnica"
+  AZURE_CONTAINER_APP: "flask-app"

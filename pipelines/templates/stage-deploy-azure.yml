@@ -1,0 +1,106 @@
+# =============================================================================
+# Stage: Deploy a Azure Container Apps (Nube pública - Free Tier)
+# Usa el plan Consumption que incluye una capa gratuita mensual:
+#   - 180,000 vCPU-seconds
+#   - 360,000 GiB-seconds
+#   - 2 millones de requests
+# =============================================================================
+parameters:
+  - name: fullImage
+    type: string
+  - name: tag
+    type: string
+    default: "$(Build.BuildId)"
+  - name: resourceGroup
+    type: string
+    default: "rg-pruebatecnica"
+  - name: location
+    type: string
+    default: "eastus2"
+  - name: containerEnv
+    type: string
+    default: "env-pruebatecnica"
+  - name: containerApp
+    type: string
+    default: "flask-app"
+
+stages:
+  - stage: DeployToAzure
+    displayName: "Stage 5 - Deploy to Azure Cloud"
+    dependsOn: DeployToK8s
+    jobs:
+      - job: DeployContainerApp
+        displayName: "Deploy a Azure Container Apps"
+        steps:
+          # -------------------------------------------------------------------
+          # Login a Azure con Service Principal
+          # -------------------------------------------------------------------
+          - powershell: |
+              Write-Host "Autenticando en Azure..."
+              az login --service-principal -u "$(AZURE_SP_APP_ID)" -p "$(AZURE_SP_SECRET)" --tenant "$(AZURE_TENANT_ID)" | Out-Null
+              if ($LASTEXITCODE -ne 0) { throw "Azure login failed" }
+              az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
+              Write-Host "Autenticado exitosamente en Azure"
+              az account show --query "{name:name, id:id}" -o table
+            displayName: "Azure Login (Service Principal)"
+
+          # -------------------------------------------------------------------
+          # Crear/Verificar Resource Group
+          # -------------------------------------------------------------------
+          - script: |
+              echo "Verificando Resource Group..."
+              az group create --name ${{ parameters.resourceGroup }} --location ${{ parameters.location }} --tags environment=production project=pruebatecnica -o none
+              echo "Resource Group: ${{ parameters.resourceGroup }} OK"
+            displayName: "Crear/Verificar Resource Group"
+
+          # -------------------------------------------------------------------
+          # Crear/Verificar Container Apps Environment
+          # -------------------------------------------------------------------
+          - script: |
+              echo "Verificando Container Apps Environment..."
+              az containerapp env show --name ${{ parameters.containerEnv }} --resource-group ${{ parameters.resourceGroup }} 2>nul || (
+                echo "Creando Container Apps Environment..."
+                az containerapp env create --name ${{ parameters.containerEnv }} --resource-group ${{ parameters.resourceGroup }} --location ${{ parameters.location }} -o none
+              )
+              echo "Environment: ${{ parameters.containerEnv }} OK"
+            displayName: "Crear/Verificar Container Apps Environment"
+
+          # -------------------------------------------------------------------
+          # Crear o actualizar Container App
+          # -------------------------------------------------------------------
+          - script: |
+              echo "Desplegando Container App..."
+              az containerapp show --name ${{ parameters.containerApp }} --resource-group ${{ parameters.resourceGroup }} 2>nul && (
+                echo "Actualizando imagen existente..."
+                az containerapp update --name ${{ parameters.containerApp }} --resource-group ${{ parameters.resourceGroup }} --image ${{ parameters.fullImage }}:${{ parameters.tag }} -o none
+              ) || (
+                echo "Creando Container App por primera vez..."
+                az containerapp create --name ${{ parameters.containerApp }} --resource-group ${{ parameters.resourceGroup }} --environment ${{ parameters.containerEnv }} --image ${{ parameters.fullImage }}:${{ parameters.tag }} --target-port 8000 --ingress external --min-replicas 0 --max-replicas 1 --cpu 0.25 --memory 0.5Gi --env-vars FLASK_HOST=0.0.0.0 FLASK_PORT=8000 --tags environment=production project=pruebatecnica -o none
+              )
+              echo "Container App desplegado exitosamente"
+            displayName: "Deploy Container App"
+
+          # -------------------------------------------------------------------
+          # Mostrar URL pública
+          # -------------------------------------------------------------------
+          - powershell: |
+              Write-Host "========================================"
+              Write-Host " Deploy a Azure completado"
+              Write-Host "========================================"
+              $fqdn = az containerapp show --name "${{ parameters.containerApp }}" --resource-group "${{ parameters.resourceGroup }}" --query "properties.configuration.ingress.fqdn" -o tsv
+              Write-Host ""
+              Write-Host "URL publica: https://$fqdn"
+              Write-Host ""
+              Write-Host "Probando endpoint..."
+              $response = Invoke-RestMethod -Uri "https://$fqdn" -TimeoutSec 30
+              Write-Host "Response: $($response | ConvertTo-Json)"
+              Write-Host "========================================"
+            displayName: "Verificar deploy + URL pública"
+
+          # -------------------------------------------------------------------
+          # Logout de Azure
+          # -------------------------------------------------------------------
+          - script: |
+              az logout
+              echo "Sesión de Azure cerrada"
+            displayName: "Azure Logout"

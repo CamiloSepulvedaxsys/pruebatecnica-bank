@@ -1,0 +1,46 @@
+# =============================================================================
+# Stage: Deploy a Kubernetes (Minikube local)
+# =============================================================================
+parameters:
+  - name: fullImage
+    type: string
+  - name: tag
+    type: string
+    default: "$(Build.BuildId)"
+
+stages:
+  - stage: DeployToK8s
+    displayName: "Stage 4 - Deploy to Kubernetes"
+    dependsOn: ScriptExecution
+    jobs:
+      - job: DeployFlaskApp
+        displayName: "Deploy Flask App a Kubernetes"
+        steps:
+          - powershell: |
+              Write-Host "Actualizando imagen en deployment.yaml..."
+              (Get-Content environment/deployment.yaml) -replace '__IMAGE__', '${{ parameters.fullImage }}:${{ parameters.tag }}' | Set-Content environment/deployment.yaml
+              Write-Host "Imagen configurada: ${{ parameters.fullImage }}:${{ parameters.tag }}"
+            displayName: "Configurar imagen en manifiestos"
+
+          - script: |
+              echo "Aplicando manifiestos de Kubernetes..."
+              kubectl apply -f environment/namespace.yaml
+              kubectl apply -f environment/configmap.yaml
+              kubectl apply -f environment/deployment.yaml
+              kubectl apply -f environment/service.yaml
+              kubectl apply -f environment/ingress.yaml
+              echo ""
+              echo "========================================"
+              echo " Deploy completado exitosamente"
+              echo " Imagen: ${{ parameters.fullImage }}:${{ parameters.tag }}"
+              echo " Namespace: flask-app"
+              echo "========================================"
+            displayName: "kubectl apply - Deploy a K8s"
+
+          - script: |
+              echo "=== Estado del deploy ==="
+              kubectl get all -n flask-app
+              echo ""
+              echo "=== Ingress ==="
+              kubectl get ingress -n flask-app
+            displayName: "Verificar deploy"

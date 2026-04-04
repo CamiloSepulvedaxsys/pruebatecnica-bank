@@ -1,0 +1,65 @@
+# =============================================================================
+# Stage: Ejecución de Scripts Bash/PowerShell
+# Jobs en PARALELO: Hola Mundo x10 + Crear 10 archivos con fecha
+# =============================================================================
+stages:
+  - stage: ScriptExecution
+    displayName: "Stage 3 - Script Execution"
+    dependsOn: BuildAndPush
+    jobs:
+      # -----------------------------------------------------------------------
+      # Job 3a: Imprimir "Hola Mundo" 10 veces (PARALELO con Job 3b)
+      # -----------------------------------------------------------------------
+      - job: HolaMundo
+        displayName: "3a - Hola Mundo x10 (Paralelo)"
+        steps:
+          - script: |
+              echo "========================================"
+              echo " Imprimiendo Hola Mundo 10 veces"
+              echo "========================================"
+              for /L %%i in (1,1,10) do echo [%%i/10] Hola Mundo
+              echo "========================================"
+              echo " Completado."
+              echo "========================================"
+            displayName: "CMD - Hola Mundo x10"
+
+      # -----------------------------------------------------------------------
+      # Job 3b: Crear 10 archivos con fecha (PARALELO con Job 3a)
+      # -----------------------------------------------------------------------
+      - job: CrearArchivos
+        displayName: "3b - Crear 10 archivos con fecha (Paralelo)"
+        steps:
+          - powershell: |
+              Write-Host "========================================"
+              Write-Host " Creando 10 archivos con fecha actual"
+              Write-Host "========================================"
+
+              $outputDir = Join-Path $env:BUILD_STAGINGDIRECTORY "archivos_fecha"
+              New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+
+              for ($i = 1; $i -le 10; $i++) {
+                  $fecha = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                  $filename = "archivo_$i.txt"
+                  $filepath = Join-Path $outputDir $filename
+                  $contenido = "Archivo $i - Creado el: $fecha"
+
+                  Set-Content -Path $filepath -Value $contenido
+                  Write-Host "Creado: $filename -> $contenido"
+              }
+
+              Write-Host ""
+              Write-Host "========================================"
+              Write-Host " Contenido de los archivos creados:"
+              Write-Host "========================================"
+
+              Get-ChildItem -Path $outputDir -Filter "*.txt" | ForEach-Object {
+                  Write-Host ""
+                  Write-Host "--- $($_.Name) ---"
+                  Get-Content $_.FullName
+              }
+
+              Write-Host ""
+              Write-Host "========================================"
+              Write-Host " Completado: 10 archivos creados."
+              Write-Host "========================================"
+            displayName: "PowerShell - Crear y mostrar 10 archivos con fecha"
