@@ -118,9 +118,9 @@ stages:
       - job: DockerBuildPush
         displayName: "Build y Push de imagen Docker"
         steps:
-          - script: |
-              echo "$(DOCKER_PASS)" | docker login -u "$(DOCKER_USER_VAR)" --password-stdin
-              echo "Login exitoso a Docker Hub"
+          - pwsh: |
+              docker login -u "$(DOCKER_USER_VAR)" -p "$(DOCKER_PASS)"
+              Write-Host "Login exitoso a Docker Hub"
             displayName: "Docker Login"
 
           - script: |
