@@ -2,18 +2,15 @@
 # Azure DevOps CI/CD Pipeline - Prueba Técnica Banco
 # Framework: Flask (Python) - Docker Samples
 # =============================================================================
-# Pipeline basado en PLANTILLAS (templates) - Mejores prácticas DevOps
+# Pipeline con 2 Stages (CI + CD) usando plantillas reutilizables
 #
 # Estructura:
 #   pipelines/templates/
-#     ├── variables.yml                 → Variables compartidas
-#     ├── stage-quality-analysis.yml    → Stage 1: SonarQube
-#     ├── stage-build-push.yml          → Stage 2: Docker Build & Push
-#     ├── stage-scripts.yml             → Stage 3: Bash/PowerShell
-#     ├── stage-deploy-k8s.yml          → Stage 4: Kubernetes local
-#     └── stage-deploy-azure.yml        → Stage 5: Azure Container Apps
+#     ├── variables.yml   → Variables compartidas
+#     ├── ci.yml          → Stage CI: SonarQube, Docker Build & Push, Scripts
+#     └── cd.yml          → Stage CD: Deploy a AKS (Azure Kubernetes Service)
 #
-# Variables de pipeline requeridas (configurar en Azure DevOps UI):
+# Variables de pipeline (configurar en Azure DevOps UI):
 #   DOCKER_PASS          (secret) - Contraseña de Docker Hub
 #   SONAR_TOKEN          (secret) - Token de SonarQube
 #   AZURE_SP_APP_ID      (secret) - App ID del Service Principal
@@ -33,37 +30,19 @@ pool:
 variables:
   - template: pipelines/templates/variables.yml
 
-# =============================================================================
-# STAGES - Orquestados mediante plantillas reutilizables
-# =============================================================================
 stages:
-  # Stage 1: Análisis de calidad (SonarQube - 2 escenarios)
-  - template: pipelines/templates/stage-quality-analysis.yml
+  # ── CI: Análisis, Build, Scripts ──
+  - template: pipelines/templates/ci.yml
     parameters:
       sonarHostUrl: $(SONAR_HOST_URL)
-
-  # Stage 2: Build de imagen Docker y push a Docker Hub
-  - template: pipelines/templates/stage-build-push.yml
-    parameters:
       dockerUser: $(DOCKER_USER_VAR)
       imageName: $(IMAGE_NAME)
       tag: $(TAG)
 
-  # Stage 3: Ejecución de scripts Bash/PowerShell (paralelo)
-  - template: pipelines/templates/stage-scripts.yml
-
-  # Stage 4: Deploy a Kubernetes local (Minikube)
-  - template: pipelines/templates/stage-deploy-k8s.yml
-    parameters:
-      fullImage: $(FULL_IMAGE)
-      tag: $(TAG)
-
-  # Stage 5: Deploy a Azure Container Apps (nube pública - free tier)
-  - template: pipelines/templates/stage-deploy-azure.yml
+  # ── CD: Deploy a AKS ──
+  - template: pipelines/templates/cd.yml
     parameters:
       fullImage: $(FULL_IMAGE)
       tag: $(TAG)
       resourceGroup: $(AZURE_RG)
-      location: $(AZURE_LOCATION)
-      containerEnv: $(AZURE_CONTAINER_ENV)
-      containerApp: $(AZURE_CONTAINER_APP)
+      clusterName: $(AKS_CLUSTER_NAME)

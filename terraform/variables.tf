@@ -1,3 +1,8 @@
+variable "subscription_id" {
+  description = "ID de la suscripción de Azure"
+  type        = string
+}
+
 variable "resource_group_name" {
   description = "Nombre del Resource Group"
   type        = string
@@ -25,23 +30,17 @@ variable "dns_prefix" {
 variable "node_count" {
   description = "Número de nodos del clúster"
   type        = number
-  default     = 2
+  default     = 1
 }
 
 variable "vm_size" {
   description = "Tamaño de VM para los nodos"
   type        = string
-  default     = "Standard_B2s"
+  default     = "Standard_B2pls_v2"
 }
 
 variable "kubernetes_version" {
   description = "Versión de Kubernetes"
   type        = string
-  default     = "1.29"
-}
-
-variable "acr_name" {
-  description = "Nombre del Azure Container Registry"
-  type        = string
-  default     = "acrpruebatecnica"
+  default     = "1.33"
 }

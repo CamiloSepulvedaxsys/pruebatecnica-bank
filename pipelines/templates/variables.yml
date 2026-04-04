@@ -10,5 +10,4 @@ variables:
   SONAR_HOST_URL: "http://localhost:9000"
   AZURE_RG: "rg-pruebatecnica"
   AZURE_LOCATION: "southcentralus"
-  AZURE_CONTAINER_ENV: "env-pruebatecnica"
-  AZURE_CONTAINER_APP: "flask-app"
+  AKS_CLUSTER_NAME: "aks-pruebatecnica"

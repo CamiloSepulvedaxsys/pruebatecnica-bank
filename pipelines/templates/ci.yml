@@ -1,0 +1,179 @@
+# =============================================================================
+# Stage CI - Integración Continua
+# Contiene: SonarQube (2 escenarios), Docker Build & Push, Scripts paralelos
+# =============================================================================
+parameters:
+  - name: sonarHostUrl
+    type: string
+    default: "http://localhost:9000"
+  - name: dockerUser
+    type: string
+  - name: imageName
+    type: string
+    default: "flask-app"
+  - name: tag
+    type: string
+    default: "$(Build.BuildId)"
+
+stages:
+  - stage: CI
+    displayName: "CI - Build, Test & Analyze"
+    jobs:
+      # =====================================================================
+      # Job 1: SonarQube - Escenario FALLIDO (simulado)
+      # =====================================================================
+      - job: SonarQube_Failed
+        displayName: "SonarQube - Escenario Fallido"
+        steps:
+          - script: |
+              echo "============================================="
+              echo " ESCENARIO 1: Simulacion de analisis FALLIDO "
+              echo "============================================="
+              echo ""
+              echo "En este escenario se demuestra que ocurre cuando"
+              echo "el Quality Gate de SonarQube NO se cumple."
+              echo ""
+              echo "Causas tipicas de fallo:"
+              echo "  - Cobertura de codigo menor a 80%%"
+              echo "  - Duplicacion mayor a 3%%"
+              echo "  - Bugs o vulnerabilidades detectadas"
+              echo "  - Code smells por encima del umbral"
+              echo ""
+              echo "Simulando ejecucion de tests SIN cobertura..."
+              py -m pip install -r app/requirements.txt -q
+              cd app && py -m pytest tests/ -v --tb=short || true
+              echo ""
+              echo "RESULTADO: Quality Gate FAILED (sin reporte de cobertura)"
+              echo "El pipeline NO continuaria a build en un escenario real."
+              echo "============================================="
+            displayName: "Tests sin cobertura (simulacion fallo)"
+
+          - script: |
+              echo "##vso[task.logissue type=warning]ESCENARIO 1: Quality Gate FAILED - Cobertura insuficiente"
+              echo "##vso[task.complete result=SucceededWithIssues;]Escenario 1 completado con advertencias"
+            displayName: "Marcar escenario como fallido"
+
+      # =====================================================================
+      # Job 2: SonarQube - Escenario EXITOSO (con cobertura + análisis)
+      # =====================================================================
+      - job: SonarQube_Success
+        displayName: "SonarQube - Escenario Exitoso"
+        steps:
+          - script: |
+              py -m pip install -r app/requirements.txt -q
+            displayName: "Instalar dependencias"
+
+          - script: |
+              echo "============================================="
+              echo " ESCENARIO 2: Analisis EXITOSO               "
+              echo "============================================="
+              cd app && py -m pytest tests/ -v --cov=. --cov-report=xml:../coverage.xml --junitxml=../test-results.xml
+              echo ""
+              echo "Tests pasaron con cobertura completa."
+            displayName: "Tests con cobertura"
+
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: "JUnit"
+              testResultsFiles: "test-results.xml"
+            displayName: "Publicar resultados de tests"
+
+          - task: PublishCodeCoverageResults@2
+            inputs:
+              summaryFileLocation: "coverage.xml"
+            displayName: "Publicar cobertura de codigo"
+
+          - script: |
+              echo "Ejecutando analisis SonarQube..."
+              sonar-scanner -Dsonar.host.url=${{ parameters.sonarHostUrl }} -Dsonar.token=$(SONAR_TOKEN)
+              echo "Analisis completado. Quality Gate: OK"
+            displayName: "SonarQube - Analisis y Quality Gate"
+
+      # =====================================================================
+      # Job 3: Docker Build & Push (depende de SonarQube exitoso)
+      # =====================================================================
+      - job: DockerBuildPush
+        displayName: "Docker Build & Push"
+        dependsOn: SonarQube_Success
+        steps:
+          - powershell: |
+              docker login -u "${{ parameters.dockerUser }}" -p "$(DOCKER_PASS)"
+              if ($LASTEXITCODE -ne 0) { throw "Docker login failed" }
+              Write-Host "Login exitoso a Docker Hub"
+            displayName: "Docker Login"
+
+          - script: |
+              docker build -t ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }} -t ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest .
+              echo "Build completado: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}"
+            displayName: "Docker Build"
+
+          - script: |
+              docker push ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}
+              docker push ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest
+              echo "Push completado a Docker Hub"
+            displayName: "Docker Push"
+
+          - script: |
+              docker logout
+              echo "Imagen publicada: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}"
+              echo "Imagen publicada: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest"
+            displayName: "Docker Logout + Resumen"
+
+      # =====================================================================
+      # Job 4: Script - Hola Mundo x10 (PARALELO con Job 5)
+      # =====================================================================
+      - job: HolaMundo
+        displayName: "Script - Hola Mundo x10 (Paralelo)"
+        dependsOn: DockerBuildPush
+        steps:
+          - script: |
+              echo "========================================"
+              echo " Imprimiendo Hola Mundo 10 veces"
+              echo "========================================"
+              for /L %%i in (1,1,10) do echo [%%i/10] Hola Mundo
+              echo "========================================"
+              echo " Completado."
+              echo "========================================"
+            displayName: "CMD - Hola Mundo x10"
+
+      # =====================================================================
+      # Job 5: Script - Crear 10 archivos con fecha (PARALELO con Job 4)
+      # =====================================================================
+      - job: CrearArchivos
+        displayName: "Script - Crear 10 archivos (Paralelo)"
+        dependsOn: DockerBuildPush
+        steps:
+          - powershell: |
+              Write-Host "========================================"
+              Write-Host " Creando 10 archivos con fecha actual"
+              Write-Host "========================================"
+
+              $outputDir = Join-Path $env:BUILD_STAGINGDIRECTORY "archivos_fecha"
+              New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+
+              for ($i = 1; $i -le 10; $i++) {
+                  $fecha = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                  $filename = "archivo_$i.txt"
+                  $filepath = Join-Path $outputDir $filename
+                  $contenido = "Archivo $i - Creado el: $fecha"
+
+                  Set-Content -Path $filepath -Value $contenido
+                  Write-Host "Creado: $filename -> $contenido"
+              }
+
+              Write-Host ""
+              Write-Host "========================================"
+              Write-Host " Contenido de los archivos creados:"
+              Write-Host "========================================"
+
+              Get-ChildItem -Path $outputDir -Filter "*.txt" | ForEach-Object {
+                  Write-Host ""
+                  Write-Host "--- $($_.Name) ---"
+                  Get-Content $_.FullName
+              }
+
+              Write-Host ""
+              Write-Host "========================================"
+              Write-Host " Completado: 10 archivos creados."
+              Write-Host "========================================"
+            displayName: "PowerShell - Crear y mostrar 10 archivos con fecha"

@@ -15,6 +15,8 @@ spec:
       labels:
         app: flask-app
     spec:
+      imagePullSecrets:
+        - name: dockerhub-secret
       containers:
         - name: flask-app
           image: __IMAGE__  # Reemplazado por el pipeline con $(FULL_IMAGE):$(TAG)

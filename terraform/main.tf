@@ -8,14 +8,12 @@ terraform {
     }
   }
 
-  backend "azurerm" {
-    resource_group_name  = "rg-terraform-state"
-    storage_account_name = "stterraformstate"
-    container_name       = "tfstate"
-    key                  = "pruebatecnica.tfstate"
-  }
+  # Estado local (para pruebas).
+  # En producción usar backend remoto (Azure Storage, Terraform Cloud, etc.)
 }
 
 provider "azurerm" {
   features {}
+
+  subscription_id = var.subscription_id
 }
