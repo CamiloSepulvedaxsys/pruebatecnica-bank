@@ -243,14 +243,3 @@ stages:
               echo "=== Ingress ==="
               kubectl get ingress -n flask-app
             displayName: "Verificar deploy"
-                    containers: |
-                      $(FULL_IMAGE):$(TAG)
-                  displayName: "Aplicar manifiestos de Kubernetes"
-
-                - script: |
-                    echo "========================================"
-                    echo " Deploy completado exitosamente"
-                    echo " Imagen: $(FULL_IMAGE):$(TAG)"
-                    echo " Namespace: flask-app"
-                    echo "========================================"
-                  displayName: "Resumen del deploy"
