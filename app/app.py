@@ -3,9 +3,11 @@ import os
 import secrets
 
 from flask import Flask, jsonify
+from flask_wtf.csrf import CSRFProtect
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", secrets.token_hex(32))
+csrf = CSRFProtect(app)
 
 
 @app.route("/", methods=["GET"])
