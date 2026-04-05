@@ -71,7 +71,6 @@ pruebatecnica-banco/
 │   └── templates/
 │       ├── _helpers.tpl
 │       ├── NOTES.txt
-│       ├── namespace.yaml
 │       ├── deployment.yaml
 │       ├── service.yaml
 │       └── ingress.yaml
@@ -162,7 +161,8 @@ eval $(terraform output -raw aks_get_credentials_command)
 
 # Verificar
 kubectl get all -n flask-app
-kubectl get svc flask-app-service -n flask-app  # Ver External IP
+kubectl get ingress -n flask-app  # Ver Ingress
+kubectl get svc ingress-nginx-controller -n ingress-nginx  # External IP
 ```
 
 ### Destruir toda la infraestructura
@@ -182,18 +182,18 @@ terraform destroy
 │  Job 1: SonarQube Escenario Fallido (simulación)         │
 │  Job 2: SonarQube Escenario Exitoso (análisis real)      │
 │  Job 3: Docker Build & Push → Docker Hub         [dep:2] │
-│  Job 4: Hola Mundo x10 (CMD)                    [dep:3] │
-│  Job 5: Crear 10 archivos con fecha (PowerShell) [dep:3] │
+│  Job 4: Hola Mundo x10 (Bash)                   [dep:3] │
+│  Job 5: Crear 10 archivos con fecha (Bash)       [dep:3] │
 │                                    (4 y 5 en paralelo)   │
 └──────────────────────────────────────────────────────────┘
                            │
 ┌─ CD ─────────────────────▼───────────────────────────────┐
-│  1. Verificar az CLI en PATH                             │
-│  2. Azure Login con Service Principal                    │
-│  3. Obtener credenciales AKS                             │
-│  4. Crear namespace + Docker Hub secret                  │
+│  1. Azure Login con Service Principal                    │
+│  2. Obtener credenciales AKS                             │
+│  3. Crear namespace + Docker Hub secret                  │
+│  4. Instalar NGINX Ingress Controller (Helm)             │
 │  5. kubectl apply (todos los manifiestos)                │
-│  6. Verificar rollout + endpoint público                 │
+│  6. Verificar rollout + endpoint externo (Ingress)       │
 │  7. Azure Logout                                         │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -251,7 +251,7 @@ docker run -d --name sonarqube -p 9000:9000 sonarqube:community
 
 ```bash
 kubectl apply -f environment/
-kubectl get svc flask-app-service -n flask-app  # External IP
+kubectl get ingress -n flask-app  # Ver Ingress
 ```
 
 ### Deploy con Helm

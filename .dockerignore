@@ -1,12 +1,37 @@
-__pycache__
+# =============================================================================
+# .dockerignore - Archivos excluidos del contexto de build
+# =============================================================================
+
+# Version control
+.git/
+.gitignore
+
+# Python artifacts
+__pycache__/
 *.pyc
 *.pyo
-.git
-.gitignore
+*.egg-info/
+
+# Tests (no se necesitan en la imagen)
+app/tests/
+
+# Config & docs
 .env
 *.md
-tests/
+
+# Infraestructura (no forma parte de la app)
 environment/
 terraform/
 helm/
+pipelines/
+
+# Análisis de código
 .sonar/
+.scannerwork/
+sonar-project.properties
+coverage.xml
+test-results.xml
+
+# IDE
+.vscode/
+.idea/

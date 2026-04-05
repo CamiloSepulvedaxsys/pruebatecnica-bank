@@ -8,7 +8,19 @@ Namespace: {{ .Values.namespace }}
 Replicas:  {{ .Values.replicaCount }}
 Imagen:    {{ .Values.image.repository }}:{{ .Values.image.tag }}
 
-{{- if eq .Values.service.type "LoadBalancer" }}
+{{- if .Values.ingress.enabled }}
+
+Ingress habilitado (NGINX Ingress Controller).
+Para obtener la IP externa:
+
+  kubectl get svc ingress-nginx-controller -n ingress-nginx
+
+Una vez asignada la IP:
+
+  curl http://<EXTERNAL-IP>/
+  curl http://<EXTERNAL-IP>/health
+
+{{- else if eq .Values.service.type "LoadBalancer" }}
 
 Para obtener la IP externa del LoadBalancer:
 
