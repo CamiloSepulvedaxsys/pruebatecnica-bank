@@ -1,6 +1,6 @@
-# =============================================================================
+﻿# =============================================================================
 # Stage CD - Despliegue Continuo a AKS (Azure Kubernetes Service)
-# Agente: Self-hosted | Herramientas: az CLI, kubectl, helm, docker
+# Agente: Self-hosted Windows | Herramientas: az CLI, kubectl, helm, docker
 # =============================================================================
 parameters:
   - name: fullImage
@@ -27,133 +27,143 @@ stages:
           # -------------------------------------------------------------------
           # Login a Azure con Service Principal
           # -------------------------------------------------------------------
-          - bash: |
-              az login --service-principal \
-                -u "$(AZURE_SP_APP_ID)" \
-                -p "$(AZURE_SP_SECRET)" \
-                --tenant "$(AZURE_TENANT_ID)" > /dev/null
+          - powershell: |
+              az login --service-principal `
+                -u "$(AZURE_SP_APP_ID)" `
+                -p "$(AZURE_SP_SECRET)" `
+                --tenant "$(AZURE_TENANT_ID)" | Out-Null
               az account set --subscription "$(AZURE_SUBSCRIPTION_ID)"
-              echo "Autenticado en Azure"
+              if ($LASTEXITCODE -ne 0) { throw "Azure login failed" }
+              Write-Host "Autenticado en Azure"
               az account show --query "{name:name, id:id}" -o table
             displayName: "Azure Login (Service Principal)"
 
           # -------------------------------------------------------------------
-          # Obtener credenciales del clúster AKS
+          # Obtener credenciales del cluster AKS
           # -------------------------------------------------------------------
-          - bash: |
-              az aks get-credentials \
-                --resource-group "${{ parameters.resourceGroup }}" \
-                --name "${{ parameters.clusterName }}" \
+          - powershell: |
+              az aks get-credentials `
+                --resource-group "${{ parameters.resourceGroup }}" `
+                --name "${{ parameters.clusterName }}" `
                 --overwrite-existing
-              echo "Credenciales AKS obtenidas"
+              if ($LASTEXITCODE -ne 0) { throw "Failed to get AKS credentials" }
+              Write-Host "Credenciales AKS obtenidas"
               kubectl cluster-info
               kubectl get nodes -o wide
             displayName: "Obtener credenciales AKS"
 
           # -------------------------------------------------------------------
-          # Crear namespace y secreto de Docker Hub para pull de imágenes
+          # Crear namespace y secreto de Docker Hub para pull de imagenes
           # -------------------------------------------------------------------
-          - bash: |
+          - powershell: |
               kubectl create namespace flask-app --dry-run=client -o yaml | kubectl apply -f -
-              kubectl create secret docker-registry dockerhub-secret \
-                --docker-server=https://index.docker.io/v1/ \
-                --docker-username="$(DOCKER_USER_VAR)" \
-                --docker-password="$(DOCKER_PASS)" \
+              kubectl create secret docker-registry dockerhub-secret `
+                --docker-server=https://index.docker.io/v1/ `
+                --docker-username="$(DOCKER_USER_VAR)" `
+                --docker-password="$(DOCKER_PASS)" `
                 -n flask-app --dry-run=client -o yaml | kubectl apply -f -
-              echo "Namespace y secreto Docker Hub configurados"
+              Write-Host "Namespace y secreto Docker Hub configurados"
             displayName: "Configurar namespace y secretos"
 
           # -------------------------------------------------------------------
           # Instalar NGINX Ingress Controller
           # -------------------------------------------------------------------
-          - bash: |
-              echo "Instalando NGINX Ingress Controller..."
-              helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null
+          - powershell: |
+              Write-Host "Instalando NGINX Ingress Controller..."
+              helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>$null
               helm repo update
-              helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-                --namespace ingress-nginx --create-namespace \
-                --set controller.service.type=LoadBalancer \
-                --set controller.replicaCount=1 \
+              helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx `
+                --namespace ingress-nginx --create-namespace `
+                --set controller.service.type=LoadBalancer `
+                --set controller.replicaCount=1 `
                 --wait --timeout 300s
-              echo "NGINX Ingress Controller instalado"
+              if ($LASTEXITCODE -ne 0) { throw "Ingress controller install failed" }
+              Write-Host "NGINX Ingress Controller instalado"
               kubectl get svc -n ingress-nginx
             displayName: "Instalar NGINX Ingress Controller"
 
           # -------------------------------------------------------------------
           # Reemplazar placeholder de imagen en deployment.yaml
           # -------------------------------------------------------------------
-          - bash: |
-              FILE="environment/deployment.yaml"
-              sed -i "s|__IMAGE__|${{ parameters.fullImage }}:${{ parameters.tag }}|g" "$FILE"
-              echo "Imagen configurada: ${{ parameters.fullImage }}:${{ parameters.tag }}"
-              grep "image:" "$FILE"
+          - powershell: |
+              $File = "environment/deployment.yaml"
+              $Content = Get-Content $File -Raw
+              $Content = $Content -replace "__IMAGE__", "${{ parameters.fullImage }}:${{ parameters.tag }}"
+              Set-Content -Path $File -Value $Content -NoNewline
+              Write-Host "Imagen configurada: ${{ parameters.fullImage }}:${{ parameters.tag }}"
+              Select-String -Path $File -Pattern "image:"
             displayName: "Configurar imagen en manifiestos"
 
           # -------------------------------------------------------------------
           # Aplicar todos los manifiestos de Kubernetes
           # -------------------------------------------------------------------
-          - bash: |
-              echo "Aplicando manifiestos de Kubernetes a AKS..."
+          - powershell: |
+              Write-Host "Aplicando manifiestos de Kubernetes a AKS..."
               kubectl apply -f environment/namespace.yaml
               kubectl apply -f environment/configmap.yaml
               kubectl apply -f environment/deployment.yaml
               kubectl apply -f environment/service.yaml
               kubectl apply -f environment/ingress.yaml
-              echo ""
-              echo "========================================"
-              echo " Manifiestos aplicados exitosamente"
-              echo " Imagen: ${{ parameters.fullImage }}:${{ parameters.tag }}"
-              echo " Cluster: ${{ parameters.clusterName }}"
-              echo "========================================"
+              Write-Host ""
+              Write-Host "========================================"
+              Write-Host " Manifiestos aplicados exitosamente"
+              Write-Host " Imagen: ${{ parameters.fullImage }}:${{ parameters.tag }}"
+              Write-Host " Cluster: ${{ parameters.clusterName }}"
+              Write-Host "========================================"
             displayName: "kubectl apply - Deploy a AKS"
 
           # -------------------------------------------------------------------
           # Esperar rollout y verificar estado del deploy
           # -------------------------------------------------------------------
-          - bash: |
-              echo "Esperando rollout del deployment..."
+          - powershell: |
+              Write-Host "Esperando rollout del deployment..."
               kubectl rollout status deployment/flask-app -n flask-app --timeout=180s
 
-              echo ""
-              echo "========================================"
-              echo " Estado del cluster AKS"
-              echo "========================================"
+              Write-Host ""
+              Write-Host "========================================"
+              Write-Host " Estado del cluster AKS"
+              Write-Host "========================================"
               kubectl get all -n flask-app
-              echo ""
-              kubectl get ingress -n flask-app 2>/dev/null
+              Write-Host ""
+              kubectl get ingress -n flask-app
 
-              echo ""
-              echo "========================================"
-              echo " Endpoint externo (Ingress)"
-              echo "========================================"
-              ATTEMPTS=0
-              while [ $ATTEMPTS -lt 20 ]; do
-                IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-                if [ -n "$IP" ]; then break; fi
-                ATTEMPTS=$((ATTEMPTS + 1))
-                echo "Esperando IP del Ingress Controller... (intento $ATTEMPTS/20)"
-                sleep 10
-              done
+              Write-Host ""
+              Write-Host "========================================"
+              Write-Host " Endpoint externo (Ingress)"
+              Write-Host "========================================"
+              $IP = $null
+              for ($attempt = 1; $attempt -le 20; $attempt++) {
+                $IP = kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>$null
+                if ($IP) { break }
+                Write-Host "Esperando IP del Ingress Controller... (intento $attempt/20)"
+                Start-Sleep -Seconds 10
+              }
 
-              if [ -n "$IP" ]; then
-                echo ""
-                echo "Ingress Controller IP: $IP"
-                echo "URL Publica (Ingress): http://$IP"
-                echo ""
+              if ($IP) {
+                Write-Host ""
+                Write-Host "Ingress Controller IP: $IP"
+                Write-Host "URL Publica (Ingress): http://$IP"
+                Write-Host ""
                 kubectl get ingress -n flask-app
-                echo ""
-                echo "Probando endpoint..."
-                curl -s --max-time 15 "http://$IP" || echo "Endpoint aun iniciando, verificar: http://$IP"
-              else
-                echo "IP del Ingress no asignada aun. Verificar: kubectl get svc -n ingress-nginx"
-              fi
-              echo "========================================"
+                Write-Host ""
+                Write-Host "Probando endpoint..."
+                try {
+                  $response = Invoke-RestMethod -Uri "http://$IP" -TimeoutSec 15
+                  Write-Host ($response | ConvertTo-Json -Compress)
+                } catch {
+                  Write-Host "Endpoint aun iniciando, verificar: http://$IP"
+                }
+              } else {
+                Write-Host "IP del Ingress no asignada aun. Verificar: kubectl get svc -n ingress-nginx"
+              }
+              Write-Host "========================================"
             displayName: "Verificar deploy y endpoint externo"
 
           # -------------------------------------------------------------------
-          # Cerrar sesión de Azure
+          # Cerrar sesion de Azure
           # -------------------------------------------------------------------
-          - bash: |
-              az logout 2>/dev/null || true
-              echo "Sesion de Azure cerrada"
+          - powershell: |
+              az logout 2>$null
+              Write-Host "Sesion de Azure cerrada"
             displayName: "Azure Logout"
+            condition: always()

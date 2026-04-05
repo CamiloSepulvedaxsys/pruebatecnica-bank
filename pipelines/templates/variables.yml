@@ -1,5 +1,5 @@
 # =============================================================================
-# Variables compartidas del pipeline (100% Cloud - Ubuntu agents)
+# Variables compartidas del pipeline (Self-hosted Windows agent)
 # =============================================================================
 variables:
   DOCKER_REGISTRY: "docker.io"

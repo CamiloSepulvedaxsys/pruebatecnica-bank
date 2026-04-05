@@ -2,7 +2,7 @@
 # Azure DevOps CI/CD Pipeline - Prueba Técnica Banco
 # Framework: Flask (Python) - Docker Samples
 # =============================================================================
-# Pipeline en agente self-hosted con Bash (Git for Windows)
+# Pipeline en agente self-hosted Windows con PowerShell
 # 2 Stages (CI + CD) usando plantillas reutilizables
 #
 # Estructura:
