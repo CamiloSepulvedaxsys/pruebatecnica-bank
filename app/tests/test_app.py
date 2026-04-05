@@ -1,4 +1,6 @@
 """Unit tests for Flask application."""
+from unittest.mock import patch
+
 import pytest
 from app import app
 
@@ -24,3 +26,10 @@ def test_health(client):
     assert response.status_code == 200
     data = response.get_json()
     assert data["status"] == "healthy"
+
+
+@patch("app.app.run")
+def test_main_entrypoint(mock_run):
+    from app import main
+    main()
+    mock_run.assert_called_once_with(host="127.0.0.1", port=8000)

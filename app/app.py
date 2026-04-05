@@ -24,7 +24,11 @@ def health():
     return jsonify(status="healthy"), 200
 
 
-if __name__ == "__main__":
+def main():
     host = os.environ.get("FLASK_HOST", "127.0.0.1")
     port = int(os.environ.get("FLASK_PORT", "8000"))
     app.run(host=host, port=port)
+
+
+if __name__ == "__main__":
+    main()
