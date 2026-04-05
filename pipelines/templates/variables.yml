@@ -1,5 +1,5 @@
 # =============================================================================
-# Variables compartidas del pipeline
+# Variables compartidas del pipeline (100% Cloud - Ubuntu agents)
 # =============================================================================
 variables:
   DOCKER_REGISTRY: "docker.io"
@@ -7,7 +7,10 @@ variables:
   IMAGE_NAME: "flask-app"
   TAG: "$(Build.BuildId)"
   FULL_IMAGE: "$(DOCKER_USER_VAR)/$(IMAGE_NAME)"
-  SONAR_HOST_URL: "http://localhost:9000"
+  # SonarQube/SonarCloud: Configurar URL del servidor de análisis
+  # Para SonarCloud: https://sonarcloud.io
+  # Para SonarQube propio: https://tu-servidor:9000
+  SONAR_HOST_URL: "https://sonarcloud.io"
   AZURE_RG: "rg-pruebatecnica"
   AZURE_LOCATION: "southcentralus"
   AKS_CLUSTER_NAME: "aks-pruebatecnica"

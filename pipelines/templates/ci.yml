@@ -1,11 +1,11 @@
 # =============================================================================
-# Stage CI - Integración Continua
+# Stage CI - Integración Continua (Microsoft-hosted Ubuntu)
 # Contiene: SonarQube (2 escenarios), Docker Build & Push, Scripts paralelos
 # =============================================================================
 parameters:
   - name: sonarHostUrl
     type: string
-    default: "http://localhost:9000"
+    default: "https://sonarcloud.io"
   - name: dockerUser
     type: string
   - name: imageName
@@ -40,8 +40,8 @@ stages:
               echo "  - Code smells por encima del umbral"
               echo ""
               echo "Simulando ejecucion de tests SIN cobertura..."
-              py -m pip install -r app/requirements.txt -q
-              cd app && py -m pytest tests/ -v --tb=short || true
+              pip install -r app/requirements.txt -q
+              cd app && python -m pytest tests/ -v --tb=short || true
               echo ""
               echo "RESULTADO: Quality Gate FAILED (sin reporte de cobertura)"
               echo "El pipeline NO continuaria a build en un escenario real."
@@ -60,14 +60,14 @@ stages:
         displayName: "SonarQube - Escenario Exitoso"
         steps:
           - script: |
-              py -m pip install -r app/requirements.txt -q
+              pip install -r app/requirements.txt -q
             displayName: "Instalar dependencias"
 
           - script: |
               echo "============================================="
               echo " ESCENARIO 2: Analisis EXITOSO               "
               echo "============================================="
-              cd app && py -m pytest tests/ -v --cov=. --cov-report=xml:../coverage.xml --junitxml=../test-results.xml
+              cd app && python -m pytest tests/ -v --cov=. --cov-report=xml:../coverage.xml --junitxml=../test-results.xml
               echo ""
               echo "Tests pasaron con cobertura completa."
             displayName: "Tests con cobertura"
@@ -84,8 +84,15 @@ stages:
             displayName: "Publicar cobertura de codigo"
 
           - script: |
+              echo "Instalando sonar-scanner CLI..."
+              export SONAR_SCANNER_VERSION=5.0.1.3006
+              curl -sSLo /tmp/sonar-scanner.zip "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux.zip"
+              unzip -q /tmp/sonar-scanner.zip -d /tmp/
+              export PATH="/tmp/sonar-scanner-${SONAR_SCANNER_VERSION}-linux/bin:$PATH"
               echo "Ejecutando analisis SonarQube..."
-              sonar-scanner -Dsonar.host.url=${{ parameters.sonarHostUrl }} -Dsonar.token=$(SONAR_TOKEN)
+              sonar-scanner \
+                -Dsonar.host.url=${{ parameters.sonarHostUrl }} \
+                -Dsonar.token=$(SONAR_TOKEN)
               echo "Analisis completado. Quality Gate: OK"
             displayName: "SonarQube - Analisis y Quality Gate"
 
@@ -96,22 +103,21 @@ stages:
         displayName: "Docker Build & Push"
         dependsOn: SonarQube_Success
         steps:
-          - powershell: |
-              docker login -u "${{ parameters.dockerUser }}" -p "$(DOCKER_PASS)"
-              if ($LASTEXITCODE -ne 0) { throw "Docker login failed" }
-              Write-Host "Login exitoso a Docker Hub"
+          - script: |
+              echo "$(DOCKER_PASS)" | docker login -u "${{ parameters.dockerUser }}" --password-stdin
+              echo "Login exitoso a Docker Hub"
             displayName: "Docker Login"
 
           - script: |
-              docker build -t ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }} -t ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest .
-              echo "Build completado: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}"
-            displayName: "Docker Build"
-
-          - script: |
-              docker push ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}
-              docker push ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest
-              echo "Push completado a Docker Hub"
-            displayName: "Docker Push"
+              docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+              docker buildx create --use --name multiarch
+              docker buildx build \
+                --platform linux/amd64,linux/arm64 \
+                -t ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }} \
+                -t ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest \
+                --push .
+              echo "Build y push completado (multi-arch: amd64 + arm64)"
+            displayName: "Docker Build & Push (Multi-arch)"
 
           - script: |
               docker logout
@@ -130,11 +136,11 @@ stages:
               echo "========================================"
               echo " Imprimiendo Hola Mundo 10 veces"
               echo "========================================"
-              for /L %%i in (1,1,10) do echo [%%i/10] Hola Mundo
+              for i in $(seq 1 10); do echo "[$i/10] Hola Mundo"; done
               echo "========================================"
               echo " Completado."
               echo "========================================"
-            displayName: "CMD - Hola Mundo x10"
+            displayName: "Bash - Hola Mundo x10"
 
       # =====================================================================
       # Job 5: Script - Crear 10 archivos con fecha (PARALELO con Job 4)
@@ -143,37 +149,36 @@ stages:
         displayName: "Script - Crear 10 archivos (Paralelo)"
         dependsOn: DockerBuildPush
         steps:
-          - powershell: |
-              Write-Host "========================================"
-              Write-Host " Creando 10 archivos con fecha actual"
-              Write-Host "========================================"
+          - script: |
+              echo "========================================"
+              echo " Creando 10 archivos con fecha actual"
+              echo "========================================"
 
-              $outputDir = Join-Path $env:BUILD_STAGINGDIRECTORY "archivos_fecha"
-              New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+              OUTPUT_DIR="$BUILD_STAGINGDIRECTORY/archivos_fecha"
+              mkdir -p "$OUTPUT_DIR"
 
-              for ($i = 1; $i -le 10; $i++) {
-                  $fecha = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-                  $filename = "archivo_$i.txt"
-                  $filepath = Join-Path $outputDir $filename
-                  $contenido = "Archivo $i - Creado el: $fecha"
+              for i in $(seq 1 10); do
+                FECHA=$(date '+%Y-%m-%d %H:%M:%S')
+                FILENAME="archivo_$i.txt"
+                FILEPATH="$OUTPUT_DIR/$FILENAME"
+                CONTENIDO="Archivo $i - Creado el: $FECHA"
+                echo "$CONTENIDO" > "$FILEPATH"
+                echo "Creado: $FILENAME -> $CONTENIDO"
+              done
 
-                  Set-Content -Path $filepath -Value $contenido
-                  Write-Host "Creado: $filename -> $contenido"
-              }
+              echo ""
+              echo "========================================"
+              echo " Contenido de los archivos creados:"
+              echo "========================================"
 
-              Write-Host ""
-              Write-Host "========================================"
-              Write-Host " Contenido de los archivos creados:"
-              Write-Host "========================================"
+              for f in "$OUTPUT_DIR"/*.txt; do
+                echo ""
+                echo "--- $(basename "$f") ---"
+                cat "$f"
+              done
 
-              Get-ChildItem -Path $outputDir -Filter "*.txt" | ForEach-Object {
-                  Write-Host ""
-                  Write-Host "--- $($_.Name) ---"
-                  Get-Content $_.FullName
-              }
-
-              Write-Host ""
-              Write-Host "========================================"
-              Write-Host " Completado: 10 archivos creados."
-              Write-Host "========================================"
-            displayName: "PowerShell - Crear y mostrar 10 archivos con fecha"
+              echo ""
+              echo "========================================"
+              echo " Completado: 10 archivos creados."
+              echo "========================================"
+            displayName: "Bash - Crear y mostrar 10 archivos con fecha"

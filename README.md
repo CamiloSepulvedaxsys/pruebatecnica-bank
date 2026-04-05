@@ -20,10 +20,10 @@ Pipeline CI/CD completo con **Azure DevOps** para una aplicación **Flask (Pytho
 │  │                        │    │                             │  │
 │  │  1. SonarQube (2 esc.) │───▶│  5. Azure Login (SP)        │  │
 │  │  2. Docker Build & Push │    │  6. AKS Get Credentials     │  │
-│  │  3. Hola Mundo x10     │    │  7. kubectl apply manifests  │  │
-│  │  4. Crear 10 archivos  │    │  8. Verificar endpoint      │  │
-│  └────────────────────────┘    └──────────────┬──────────────┘  │
-│           Self-Hosted Agent (Windows)          │                 │
+│  │  3. Hola Mundo x10     │    │  7. NGINX Ingress Controller│  │
+│  │  4. Crear 10 archivos  │    │  8. kubectl apply manifests │  │
+│  └────────────────────────┘    │  9. Verificar endpoint      │  │
+│           ubuntu-latest (Cloud)│  └──────────────┬──────────────┘  │
 └────────────────────────────────────────────────┼─────────────────┘
                                                  │
                     ┌────────────────────────────▼────────────┐
@@ -31,10 +31,14 @@ Pipeline CI/CD completo con **Azure DevOps** para una aplicación **Flask (Pytho
                     │  ┌─────────────────────────────────────┐ │
                     │  │  namespace: flask-app                │ │
                     │  │  ┌──────────┐  ┌──────────────────┐ │ │
-                    │  │  │ Pod (x2) │  │ Service (LB)     │ │ │
+                    │  │  │ Pod (x2) │  │ Service (CIP)    │ │ │
                     │  │  │ Flask    │◀─│ :80 → :8000      │ │ │
-                    │  │  │ Gunicorn │  │ External IP      │ │ │
-                    │  │  └──────────┘  └──────────────────┘ │ │
+                    │  │  │ Gunicorn │  └──────────────────┘ │ │
+                    │  │  └──────────┘                       │ │
+                    │  │  ┌───────────────────────────────┐ │ │
+                    │  │  │ Ingress (NGINX Controller)    │ │ │
+                    │  │  │ LoadBalancer → External IP    │ │ │
+                    │  │  └───────────────────────────────┘ │ │
                     │  └─────────────────────────────────────┘ │
                     │  Location: southcentralus                │
                     │  Node: Standard_B2pls_v2 (1 nodo)       │
@@ -58,10 +62,10 @@ pruebatecnica-banco/
 │   ├── namespace.yaml
 │   ├── configmap.yaml
 │   ├── deployment.yaml
-│   ├── service.yaml                  # LoadBalancer (endpoint externo)
-│   └── ingress.yaml
+│   ├── service.yaml                  # ClusterIP (tráfico vía Ingress)
+│   └── ingress.yaml                  # NGINX Ingress (endpoint externo)
 │
-├── helm/flask-app/                   # Helm Chart (bonus)
+├── helm/flask-app/                   # Helm Chart
 │   ├── Chart.yaml
 │   ├── values.yaml
 │   └── templates/
@@ -72,22 +76,22 @@ pruebatecnica-banco/
 │       ├── service.yaml
 │       └── ingress.yaml
 │
-├── terraform/                        # IaC para AKS (bonus)
+├── terraform/                        # IaC para AKS
 │   ├── main.tf                       # Providers (azurerm, helm, kubernetes)
 │   ├── aks.tf                        # Resource Group + AKS Cluster
-│   ├── kubernetes.tf                 # Namespace, Secret, Helm Release
+│   ├── kubernetes.tf                 # Namespace, Secret, NGINX Ingress, Helm
 │   ├── variables.tf                  # Variables con defaults
 │   ├── outputs.tf                    # Outputs del clúster
 │   └── terraform.tfvars              # Valores de la prueba
 │
 ├── pipelines/templates/              # Templates del pipeline
 │   ├── variables.yml                 # Variables compartidas
-│   ├── ci.yml                        # Stage CI (5 jobs)
-│   └── cd.yml                        # Stage CD (deploy AKS)
+│   ├── ci.yml                        # Stage CI (5 jobs, Bash)
+│   └── cd.yml                        # Stage CD (deploy AKS, Bash)
 │
-├── azure-pipelines.yml               # Pipeline orquestador (2 stages)
+├── azure-pipelines.yml               # Pipeline orquestador (ubuntu-latest)
 ├── Dockerfile                        # Multi-stage build (Python 3.12)
-├── sonar-project.properties          # Config SonarQube
+├── sonar-project.properties          # Config SonarQube/SonarCloud
 ├── .gitignore
 └── .dockerignore
 ```
@@ -98,9 +102,9 @@ pruebatecnica-banco/
 
 | Herramienta | Versión  | Uso                              |
 |-------------|----------|----------------------------------|
-| Docker      | 24+      | Build de imágenes                |
+| Docker      | 24+      | Build de imágenes (buildx multi-arch) |
 | Python      | 3.12+    | Framework Flask                  |
-| SonarQube   | 9+       | Análisis de calidad              |
+| SonarQube   | 9+ / SonarCloud | Análisis de calidad       |
 | Azure CLI   | 2.60+    | Gestión de Azure                 |
 | kubectl     | 1.28+    | Gestión de Kubernetes            |
 | Terraform   | 1.5+     | Infraestructura como código      |
@@ -199,7 +203,7 @@ terraform destroy
 | Variable              | Tipo    | Descripción                     |
 |-----------------------|---------|---------------------------------|
 | `DOCKER_PASS`         | Secret  | Contraseña Docker Hub           |
-| `SONAR_TOKEN`         | Secret  | Token de SonarQube              |
+| `SONAR_TOKEN`         | Secret  | Token de SonarQube/SonarCloud   |
 | `AZURE_SP_APP_ID`     | Secret  | App ID del Service Principal    |
 | `AZURE_SP_SECRET`     | Secret  | Password del Service Principal  |
 | `AZURE_TENANT_ID`     | Normal  | Tenant ID de Azure AD           |
@@ -216,8 +220,14 @@ terraform destroy
 | 1 - Fallido | Tests sin reporte de cobertura (simulación) | FAILED |
 | 2 - Exitoso | Tests con cobertura + análisis SonarQube real | PASSED |
 
-### Levantar SonarQube local
+### Levantar SonarQube (opciones)
 
+**Opción 1: SonarCloud (recomendado para cloud)**
+- Crear cuenta en https://sonarcloud.io
+- Configurar `SONAR_HOST_URL` como `https://sonarcloud.io`
+- Crear token y configurar `SONAR_TOKEN` en pipeline
+
+**Opción 2: SonarQube local (desarrollo)**
 ```bash
 docker run -d --name sonarqube -p 9000:9000 sonarqube:community
 # Acceder: http://localhost:9000 (admin/admin)
@@ -234,8 +244,8 @@ docker run -d --name sonarqube -p 9000:9000 sonarqube:community
 | `namespace.yaml` | Namespace | `flask-app` |
 | `configmap.yaml` | ConfigMap | Variables de entorno |
 | `deployment.yaml` | Deployment | 2 réplicas, health probes |
-| `service.yaml` | Service | LoadBalancer (IP pública) |
-| `ingress.yaml` | Ingress | NGINX (opcional) |
+| `service.yaml` | Service | ClusterIP (tráfico via Ingress) |
+| `ingress.yaml` | Ingress | NGINX Ingress (endpoint externo) |
 
 ### Deploy manual con kubectl
 
@@ -255,15 +265,17 @@ helm upgrade flask-app helm/flask-app/ --set image.tag=<nuevo-tag> -n flask-app
 
 ## Bonus implementados
 
-- [x] Clúster AKS creado con **Terraform** (IaC completa: RG + AKS + K8s resources + Helm)
+- [x] Clúster AKS creado con **Terraform** (IaC completa: RG + AKS + NGINX Ingress + Helm)
 - [x] **Helm Chart** como manejador de templates con `_helpers.tpl` y `NOTES.txt`
 - [x] Despliegue en **nube pública Azure** (AKS en southcentralus)
-- [x] Endpoint **accesible desde internet** (LoadBalancer con IP pública)
+- [x] Endpoint **accesible desde internet** (NGINX Ingress Controller con IP pública)
 - [x] Pipeline con **templates reutilizables** (2 stages: CI + CD)
-- [x] **Multi-stage Docker build** (imagen optimizada ~150MB)
+- [x] **Multi-stage Docker build** (imagen optimizada ~150MB, multi-arch amd64+arm64)
 - [x] **Service Principal** para autenticación segura en pipeline
 - [x] Variables **sensibles como secrets** en Azure DevOps
 - [x] **Terraform providers** para azurerm + kubernetes + helm
+- [x] Pipeline **100% en nube** (agentes `ubuntu-latest`, sin agente local)
+- [x] **Docker buildx** multi-arquitectura desde el pipeline
 
 ---
 
