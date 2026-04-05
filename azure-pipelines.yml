@@ -14,10 +14,9 @@
 # Variables de pipeline (configurar en Azure DevOps UI):
 #   DOCKER_PASS              (secret) - Contraseña de Docker Hub
 #   SONAR_TOKEN              (secret) - Token de SonarQube/SonarCloud
-#   AZURE_SP_APP_ID          (secret) - App ID del Service Principal
-#   AZURE_SP_SECRET          (secret) - Secret del Service Principal
-#   AZURE_TENANT_ID                   - Tenant ID de Azure AD
-#   AZURE_SUBSCRIPTION_ID             - ID de la suscripción Azure
+#
+# Service Connection:
+#   flask-app-aks            (Kubernetes) - Conexión al clúster AKS (ns: flask-app)
 # =============================================================================
 
 trigger:
@@ -47,3 +46,4 @@ stages:
       tag: $(TAG)
       resourceGroup: $(AZURE_RG)
       clusterName: $(AKS_CLUSTER_NAME)
+      serviceConnection: "flask-app-aks"

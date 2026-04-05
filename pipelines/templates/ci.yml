@@ -40,7 +40,7 @@ stages:
               Write-Host "  - Code smells por encima del umbral"
               Write-Host ""
               Write-Host "Simulando ejecucion de tests SIN cobertura..."
-              pip install -r app/requirements.txt -q
+              py -m pip install -r app/requirements.txt -q
               Set-Location app
               py -m pytest tests/ -v --tb=short
               if ($LASTEXITCODE -ne 0) { Write-Host "Tests fallaron (esperado en simulacion)" }
@@ -63,7 +63,7 @@ stages:
         displayName: "SonarQube - Escenario Exitoso"
         steps:
           - powershell: |
-              pip install -r app/requirements.txt -q
+              py -m pip install -r app/requirements.txt -q
             displayName: "Instalar dependencias"
 
           - powershell: |
