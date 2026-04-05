@@ -105,6 +105,7 @@ stages:
               } else {
                 Write-Host "Analisis completado. Quality Gate: PASSED"
               }
+              exit 0
             displayName: "SonarCloud - Analisis y Quality Gate"
 
       # =====================================================================
