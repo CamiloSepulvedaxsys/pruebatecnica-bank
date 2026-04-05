@@ -1,6 +1,6 @@
 # =============================================================================
 # Stage CD - Despliegue Continuo a AKS (Azure Kubernetes Service)
-# Agente: Microsoft-hosted Ubuntu | Herramientas: az CLI, kubectl, helm
+# Agente: Self-hosted | Herramientas: az CLI, kubectl, helm, docker
 # =============================================================================
 parameters:
   - name: fullImage
@@ -27,7 +27,7 @@ stages:
           # -------------------------------------------------------------------
           # Login a Azure con Service Principal
           # -------------------------------------------------------------------
-          - script: |
+          - bash: |
               az login --service-principal \
                 -u "$(AZURE_SP_APP_ID)" \
                 -p "$(AZURE_SP_SECRET)" \
@@ -40,7 +40,7 @@ stages:
           # -------------------------------------------------------------------
           # Obtener credenciales del clúster AKS
           # -------------------------------------------------------------------
-          - script: |
+          - bash: |
               az aks get-credentials \
                 --resource-group "${{ parameters.resourceGroup }}" \
                 --name "${{ parameters.clusterName }}" \
@@ -53,7 +53,7 @@ stages:
           # -------------------------------------------------------------------
           # Crear namespace y secreto de Docker Hub para pull de imágenes
           # -------------------------------------------------------------------
-          - script: |
+          - bash: |
               kubectl create namespace flask-app --dry-run=client -o yaml | kubectl apply -f -
               kubectl create secret docker-registry dockerhub-secret \
                 --docker-server=https://index.docker.io/v1/ \
@@ -66,7 +66,7 @@ stages:
           # -------------------------------------------------------------------
           # Instalar NGINX Ingress Controller
           # -------------------------------------------------------------------
-          - script: |
+          - bash: |
               echo "Instalando NGINX Ingress Controller..."
               helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>/dev/null
               helm repo update
@@ -82,7 +82,7 @@ stages:
           # -------------------------------------------------------------------
           # Reemplazar placeholder de imagen en deployment.yaml
           # -------------------------------------------------------------------
-          - script: |
+          - bash: |
               FILE="environment/deployment.yaml"
               sed -i "s|__IMAGE__|${{ parameters.fullImage }}:${{ parameters.tag }}|g" "$FILE"
               echo "Imagen configurada: ${{ parameters.fullImage }}:${{ parameters.tag }}"
@@ -92,7 +92,7 @@ stages:
           # -------------------------------------------------------------------
           # Aplicar todos los manifiestos de Kubernetes
           # -------------------------------------------------------------------
-          - script: |
+          - bash: |
               echo "Aplicando manifiestos de Kubernetes a AKS..."
               kubectl apply -f environment/namespace.yaml
               kubectl apply -f environment/configmap.yaml
@@ -110,7 +110,7 @@ stages:
           # -------------------------------------------------------------------
           # Esperar rollout y verificar estado del deploy
           # -------------------------------------------------------------------
-          - script: |
+          - bash: |
               echo "Esperando rollout del deployment..."
               kubectl rollout status deployment/flask-app -n flask-app --timeout=180s
 
@@ -153,7 +153,7 @@ stages:
           # -------------------------------------------------------------------
           # Cerrar sesión de Azure
           # -------------------------------------------------------------------
-          - script: |
+          - bash: |
               az logout 2>/dev/null || true
               echo "Sesion de Azure cerrada"
             displayName: "Azure Logout"

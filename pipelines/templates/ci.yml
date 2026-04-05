@@ -1,5 +1,5 @@
 # =============================================================================
-# Stage CI - Integración Continua (Microsoft-hosted Ubuntu)
+# Stage CI - Integración Continua (Self-hosted agent)
 # Contiene: SonarQube (2 escenarios), Docker Build & Push, Scripts paralelos
 # =============================================================================
 parameters:
@@ -25,7 +25,7 @@ stages:
       - job: SonarQube_Failed
         displayName: "SonarQube - Escenario Fallido"
         steps:
-          - script: |
+          - bash: |
               echo "============================================="
               echo " ESCENARIO 1: Simulacion de analisis FALLIDO "
               echo "============================================="
@@ -48,7 +48,7 @@ stages:
               echo "============================================="
             displayName: "Tests sin cobertura (simulacion fallo)"
 
-          - script: |
+          - bash: |
               echo "##vso[task.logissue type=warning]ESCENARIO 1: Quality Gate FAILED - Cobertura insuficiente"
               echo "##vso[task.complete result=SucceededWithIssues;]Escenario 1 completado con advertencias"
             displayName: "Marcar escenario como fallido"
@@ -59,11 +59,11 @@ stages:
       - job: SonarQube_Success
         displayName: "SonarQube - Escenario Exitoso"
         steps:
-          - script: |
+          - bash: |
               pip install -r app/requirements.txt -q
             displayName: "Instalar dependencias"
 
-          - script: |
+          - bash: |
               echo "============================================="
               echo " ESCENARIO 2: Analisis EXITOSO               "
               echo "============================================="
@@ -83,12 +83,23 @@ stages:
               summaryFileLocation: "coverage.xml"
             displayName: "Publicar cobertura de codigo"
 
-          - script: |
+          - bash: |
               echo "Instalando sonar-scanner CLI..."
               export SONAR_SCANNER_VERSION=5.0.1.3006
-              curl -sSLo /tmp/sonar-scanner.zip "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux.zip"
-              unzip -q /tmp/sonar-scanner.zip -d /tmp/
-              export PATH="/tmp/sonar-scanner-${SONAR_SCANNER_VERSION}-linux/bin:$PATH"
+              TEMP_DIR="${AGENT_TEMPDIRECTORY:-/tmp}"
+              case "$(uname -s)" in
+                MINGW*|MSYS*|CYGWIN*) PLATFORM="windows" ;;
+                *)                     PLATFORM="linux" ;;
+              esac
+              curl -sSLo "$TEMP_DIR/sonar-scanner.zip" \
+                "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-${PLATFORM}.zip"
+              cd "$TEMP_DIR"
+              if command -v unzip &>/dev/null; then
+                unzip -qo sonar-scanner.zip
+              else
+                tar -xf sonar-scanner.zip
+              fi
+              export PATH="$TEMP_DIR/sonar-scanner-${SONAR_SCANNER_VERSION}-${PLATFORM}/bin:$PATH"
               echo "Ejecutando analisis SonarQube..."
               sonar-scanner \
                 -Dsonar.host.url=${{ parameters.sonarHostUrl }} \
@@ -103,13 +114,14 @@ stages:
         displayName: "Docker Build & Push"
         dependsOn: SonarQube_Success
         steps:
-          - script: |
+          - bash: |
               echo "$(DOCKER_PASS)" | docker login -u "${{ parameters.dockerUser }}" --password-stdin
               echo "Login exitoso a Docker Hub"
             displayName: "Docker Login"
 
-          - script: |
+          - bash: |
               docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+              docker buildx rm multiarch 2>/dev/null || true
               docker buildx create --use --name multiarch
               docker buildx build \
                 --platform linux/amd64,linux/arm64 \
@@ -119,7 +131,7 @@ stages:
               echo "Build y push completado (multi-arch: amd64 + arm64)"
             displayName: "Docker Build & Push (Multi-arch)"
 
-          - script: |
+          - bash: |
               docker logout
               echo "Imagen publicada: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:${{ parameters.tag }}"
               echo "Imagen publicada: ${{ parameters.dockerUser }}/${{ parameters.imageName }}:latest"
@@ -132,7 +144,7 @@ stages:
         displayName: "Script - Hola Mundo x10 (Paralelo)"
         dependsOn: DockerBuildPush
         steps:
-          - script: |
+          - bash: |
               echo "========================================"
               echo " Imprimiendo Hola Mundo 10 veces"
               echo "========================================"
@@ -149,7 +161,7 @@ stages:
         displayName: "Script - Crear 10 archivos (Paralelo)"
         dependsOn: DockerBuildPush
         steps:
-          - script: |
+          - bash: |
               echo "========================================"
               echo " Creando 10 archivos con fecha actual"
               echo "========================================"

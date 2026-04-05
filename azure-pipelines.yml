@@ -2,7 +2,7 @@
 # Azure DevOps CI/CD Pipeline - Prueba Técnica Banco
 # Framework: Flask (Python) - Docker Samples
 # =============================================================================
-# Pipeline 100% en nube con agentes Microsoft-hosted (ubuntu-latest)
+# Pipeline en agente self-hosted con Bash (Git for Windows)
 # 2 Stages (CI + CD) usando plantillas reutilizables
 #
 # Estructura:
@@ -26,7 +26,7 @@ trigger:
       - main
 
 pool:
-  vmImage: "ubuntu-latest"
+  name: "SelfHosted"
 
 variables:
   - template: pipelines/templates/variables.yml
