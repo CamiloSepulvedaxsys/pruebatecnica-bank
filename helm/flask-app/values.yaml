@@ -9,17 +9,17 @@ imagePullSecrets:
   - name: dockerhub-secret
 
 service:
-  type: LoadBalancer
+  type: ClusterIP
   port: 80
   targetPort: 8000
 
 ingress:
-  enabled: false
+  enabled: true
   className: nginx
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
   hosts:
-    - host: flask-app.local
+    - host: ""
       paths:
         - path: /
           pathType: Prefix

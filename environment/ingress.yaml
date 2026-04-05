@@ -7,13 +7,10 @@ metadata:
     app: flask-app
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
-    # Para HTTPS con cert-manager (opcional):
-    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
 spec:
   ingressClassName: nginx
   rules:
-    - host: flask-app.local  # Cambiar por dominio real en producción
-      http:
+    - http:
         paths:
           - path: /
             pathType: Prefix
@@ -22,8 +19,3 @@ spec:
                 name: flask-app-service
                 port:
                   number: 80
-  # TLS (descomentar para HTTPS):
-  # tls:
-  #   - hosts:
-  #       - flask-app.local
-  #     secretName: flask-app-tls

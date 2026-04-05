@@ -44,6 +44,30 @@ resource "kubernetes_secret" "dockerhub" {
 }
 
 # =============================================================================
+# NGINX Ingress Controller (vía Helm)
+# =============================================================================
+resource "helm_release" "nginx_ingress" {
+  name             = "ingress-nginx"
+  repository       = "https://kubernetes.github.io/ingress-nginx"
+  chart            = "ingress-nginx"
+  namespace        = "ingress-nginx"
+  create_namespace = true
+  version          = "4.10.1"
+
+  set {
+    name  = "controller.service.type"
+    value = "LoadBalancer"
+  }
+
+  set {
+    name  = "controller.replicaCount"
+    value = "1"
+  }
+
+  depends_on = [azurerm_kubernetes_cluster.aks]
+}
+
+# =============================================================================
 # Helm Release - Flask App
 # =============================================================================
 resource "helm_release" "flask_app" {
@@ -63,16 +87,17 @@ resource "helm_release" "flask_app" {
 
   set {
     name  = "service.type"
-    value = "LoadBalancer"
+    value = "ClusterIP"
   }
 
   set {
     name  = "ingress.enabled"
-    value = "false"
+    value = "true"
   }
 
   depends_on = [
     kubernetes_namespace.flask_app,
-    kubernetes_secret.dockerhub
+    kubernetes_secret.dockerhub,
+    helm_release.nginx_ingress
   ]
 }

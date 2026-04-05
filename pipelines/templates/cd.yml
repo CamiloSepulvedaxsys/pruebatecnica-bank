@@ -87,6 +87,22 @@ stages:
             displayName: "Configurar namespace y secretos"
 
           # -------------------------------------------------------------------
+          # Instalar NGINX Ingress Controller
+          # -------------------------------------------------------------------
+          - powershell: |
+              Write-Host "Instalando NGINX Ingress Controller..."
+              helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>$null
+              helm repo update
+              helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx `
+                --namespace ingress-nginx --create-namespace `
+                --set controller.service.type=LoadBalancer `
+                --set controller.replicaCount=1 `
+                --wait --timeout 300s
+              Write-Host "NGINX Ingress Controller instalado"
+              kubectl get svc -n ingress-nginx
+            displayName: "Instalar NGINX Ingress Controller"
+
+          # -------------------------------------------------------------------
           # Reemplazar placeholder de imagen en deployment.yaml
           # -------------------------------------------------------------------
           - powershell: |
@@ -134,20 +150,23 @@ stages:
 
               Write-Host ""
               Write-Host "========================================"
-              Write-Host " Endpoint externo"
+              Write-Host " Endpoint externo (Ingress)"
               Write-Host "========================================"
               $attempts = 0
               do {
-                $ip = kubectl get svc flask-app-service -n flask-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>$null
+                $ip = kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>$null
                 if ($ip) { break }
                 $attempts++
-                Write-Host "Esperando IP externa... (intento $attempts/20)"
+                Write-Host "Esperando IP del Ingress Controller... (intento $attempts/20)"
                 Start-Sleep -Seconds 10
               } while ($attempts -lt 20)
 
               if ($ip) {
                 Write-Host ""
-                Write-Host "URL Publica: http://$ip"
+                Write-Host "Ingress Controller IP: $ip"
+                Write-Host "URL Publica (Ingress): http://$ip"
+                Write-Host ""
+                kubectl get ingress -n flask-app
                 Write-Host ""
                 Write-Host "Probando endpoint..."
                 try {
@@ -157,7 +176,7 @@ stages:
                   Write-Host "Endpoint aun iniciando, verificar manualmente: http://$ip"
                 }
               } else {
-                Write-Host "IP externa no asignada aun. Verificar: kubectl get svc -n flask-app"
+                Write-Host "IP del Ingress no asignada aun. Verificar: kubectl get svc -n ingress-nginx"
               }
               Write-Host "========================================"
             displayName: "Verificar deploy y endpoint externo"

@@ -28,3 +28,8 @@ output "helm_release_status" {
   value       = helm_release.flask_app.status
   description = "Estado del despliegue Helm"
 }
+
+output "ingress_controller_status" {
+  value       = helm_release.nginx_ingress.status
+  description = "Estado del NGINX Ingress Controller"
+}
