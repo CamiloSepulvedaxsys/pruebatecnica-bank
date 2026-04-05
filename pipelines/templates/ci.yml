@@ -116,10 +116,12 @@ stages:
         dependsOn: SonarQube_Success
         steps:
           - powershell: |
-              Write-Output "$(DOCKER_PASS)" | docker login -u "${{ parameters.dockerUser }}" --password-stdin
+              $env:DOCKER_PASS | docker login -u "${{ parameters.dockerUser }}" --password-stdin
               if ($LASTEXITCODE -ne 0) { throw "Docker login failed" }
               Write-Host "Login exitoso a Docker Hub"
             displayName: "Docker Login"
+            env:
+              DOCKER_PASS: $(DOCKER_PASS)
 
           - powershell: |
               docker buildx rm multiarch 2>$null
