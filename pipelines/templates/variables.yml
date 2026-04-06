@@ -14,3 +14,4 @@ variables:
   AZURE_RG: "rg-pruebatecnica"
   AZURE_LOCATION: "southcentralus"
   AKS_CLUSTER_NAME: "aks-pruebatecnica"
+  INGRESS_STATIC_IP: "20.114.65.15"  # IP publica estatica (Azure Public IP)

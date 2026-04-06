@@ -33,3 +33,8 @@ output "ingress_controller_status" {
   value       = helm_release.nginx_ingress.status
   description = "Estado del NGINX Ingress Controller"
 }
+
+output "ingress_static_ip" {
+  value       = azurerm_public_ip.ingress.ip_address
+  description = "IP publica estatica del Ingress Controller"
+}

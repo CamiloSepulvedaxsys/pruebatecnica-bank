@@ -42,3 +42,20 @@ resource "azurerm_kubernetes_cluster" "aks" {
     project     = "pruebatecnica"
   }
 }
+
+# =============================================================================
+# IP Publica Estatica para NGINX Ingress Controller
+# =============================================================================
+resource "azurerm_public_ip" "ingress" {
+  name                = "pip-ingress-pruebatecnica"
+  resource_group_name = azurerm_kubernetes_cluster.aks.node_resource_group
+  location            = azurerm_resource_group.main.location
+  allocation_method   = "Static"
+  sku                 = "Standard"
+
+  tags = {
+    environment = "production"
+    project     = "pruebatecnica"
+    managed_by  = "terraform"
+  }
+}

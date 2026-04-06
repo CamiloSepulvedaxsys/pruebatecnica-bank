@@ -17,6 +17,9 @@ parameters:
   - name: serviceConnection
     type: string
     default: "flask-app-aks"
+  - name: ingressStaticIP
+    type: string
+    default: ""
 
 stages:
   - stage: CD
@@ -63,11 +66,19 @@ stages:
                     Write-Host "Instalando NGINX Ingress Controller..."
                     helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx 2>$null
                     helm repo update
-                    helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx `
-                      --namespace ingress-nginx --create-namespace `
-                      --set controller.service.type=LoadBalancer `
-                      --set controller.replicaCount=1 `
-                      --wait --timeout 300s
+                    $helmArgs = @(
+                      "upgrade", "--install", "ingress-nginx", "ingress-nginx/ingress-nginx",
+                      "--namespace", "ingress-nginx", "--create-namespace",
+                      "--set", "controller.service.type=LoadBalancer",
+                      "--set", "controller.replicaCount=1"
+                    )
+                    $staticIP = "${{ parameters.ingressStaticIP }}"
+                    if ($staticIP -and $staticIP -ne "") {
+                      Write-Host "Usando IP estatica: $staticIP"
+                      $helmArgs += "--set", "controller.service.loadBalancerIP=$staticIP"
+                    }
+                    $helmArgs += "--wait", "--timeout", "300s"
+                    & helm @helmArgs
                     if ($LASTEXITCODE -ne 0) { throw "Ingress controller install failed" }
                     Write-Host "NGINX Ingress Controller instalado"
                     kubectl get svc -n ingress-nginx

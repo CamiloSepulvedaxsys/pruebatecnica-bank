@@ -64,7 +64,17 @@ resource "helm_release" "nginx_ingress" {
     value = "1"
   }
 
-  depends_on = [azurerm_kubernetes_cluster.aks]
+  set {
+    name  = "controller.service.loadBalancerIP"
+    value = azurerm_public_ip.ingress.ip_address
+  }
+
+  set {
+    name  = "controller.service.annotations.service\\.beta\\.kubernetes\\.io/azure-load-balancer-resource-group"
+    value = azurerm_kubernetes_cluster.aks.node_resource_group
+  }
+
+  depends_on = [azurerm_kubernetes_cluster.aks, azurerm_public_ip.ingress]
 }
 
 # =============================================================================
