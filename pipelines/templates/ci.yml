@@ -128,7 +128,9 @@ stages:
               DOCKER_PASS: $(DOCKER_PASS)
 
           - powershell: |
+              $ErrorActionPreference = "Continue"
               docker buildx rm multiarch 2>$null
+              $ErrorActionPreference = "Stop"
               docker buildx create --use --name multiarch
               docker buildx build `
                 --platform linux/amd64,linux/arm64 `
