@@ -118,12 +118,9 @@ stages:
           - powershell: |
               if (-not $env:DOCKER_PASS) {
                 Write-Host "##vso[task.logissue type=error]DOCKER_PASS variable is empty or not configured"
-                Write-Host "Configure DOCKER_PASS as a secret variable in Azure DevOps Pipeline settings"
                 throw "DOCKER_PASS not set"
               }
-              Write-Host "DOCKER_PASS length: $($env:DOCKER_PASS.Length) chars"
-              Write-Host "Docker user: ${{ parameters.dockerUser }}"
-              $env:DOCKER_PASS | docker login -u "${{ parameters.dockerUser }}" --password-stdin
+              docker login -u "${{ parameters.dockerUser }}" -p $env:DOCKER_PASS
               if ($LASTEXITCODE -ne 0) { throw "Docker login failed" }
               Write-Host "Login exitoso a Docker Hub"
             displayName: "Docker Login"
