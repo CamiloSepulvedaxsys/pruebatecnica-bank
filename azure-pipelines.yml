@@ -1,24 +1,3 @@
-# =============================================================================
-# Azure DevOps CI/CD Pipeline - Prueba Técnica Banco
-# Framework: Flask (Python) - Docker Samples
-# =============================================================================
-# Pipeline en agente self-hosted Windows con PowerShell
-# 2 Stages (CI + CD) usando plantillas reutilizables
-#
-# Estructura:
-#   pipelines/templates/
-#     ├── variables.yml   → Variables compartidas
-#     ├── ci.yml          → Stage CI: SonarQube, Docker Build & Push, Scripts
-#     └── cd.yml          → Stage CD: Deploy a AKS (Azure Kubernetes Service)
-#
-# Variables de pipeline (configurar en Azure DevOps UI):
-#   DOCKER_PASS              (secret) - Contraseña de Docker Hub
-#   SONAR_TOKEN              (secret) - Token de SonarQube/SonarCloud
-#
-# Service Connection:
-#   flask-app-aks            (Kubernetes) - Conexión al clúster AKS (ns: flask-app)
-# =============================================================================
-
 trigger:
   branches:
     include:
