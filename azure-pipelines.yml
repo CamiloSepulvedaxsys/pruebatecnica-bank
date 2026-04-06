@@ -47,4 +47,3 @@ stages:
       resourceGroup: $(AZURE_RG)
       clusterName: $(AKS_CLUSTER_NAME)
       serviceConnection: "flask-app-aks"
-      ingressStaticIP: $(INGRESS_STATIC_IP)

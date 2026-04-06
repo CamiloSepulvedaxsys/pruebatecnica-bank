@@ -1,0 +1,7 @@
+controller:
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+    loadBalancerIP: "20.114.65.15"
+    annotations:
+      service.beta.kubernetes.io/azure-load-balancer-resource-group: "MC_rg-pruebatecnica_aks-pruebatecnica_southcentralus"
